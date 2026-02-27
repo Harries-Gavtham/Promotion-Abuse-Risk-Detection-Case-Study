@@ -25,6 +25,7 @@ Business Context: Normal users have one account per device. Fraudsters create mu
 
 SQL QUERY:
 
+```
 SELECT 
     d.device_id,
     COUNT(DISTINCT d.user_id) AS unique_accounts_on_device,
@@ -34,9 +35,10 @@ JOIN orders o ON d.user_id = o.user_id
 WHERE o.promo_code = 'NEWBIE150'
 GROUP BY d.device_id
 HAVING COUNT(DISTINCT d.user_id) > 1;
+```
 
 Insight: This query isolated specific hardware (e.g., DEV_001, DEV_009) that had up to 5 unique users claiming the same welcome promo, highlighting immediate targets for hardware-level blocking.
-<img width="1291" height="652" alt="image" src="Query1.png" />
+<img width="800" height="500" alt="image" src="Query1.png" />
 
 2. Mapping the "Blast Radius" (Operational Action)
 Business Context: To reverse fraudulent transactions or suspend accounts, the Operations team needs the exact receipt numbers and user IDs tied to the bad devices found in Step 1.
