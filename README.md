@@ -1,27 +1,33 @@
 # Promotion-Abuse-Risk-Detection-Case-Study
-📌 Project Overview
+
+** Project Overview **
+
 This project simulates a real-world Trust & Safety investigation for a food-delivery platform (similar to Swiggy). The business problem centers around a major customer acquisition campaign offering a flat ₹150 discount (NEWBIE150) on first orders.
 
 While user acquisition metrics skyrocketed, marketing spend depleted at an unsustainable rate. The objective of this SQL analysis is to utilize device fingerprinting, IP tracking, and behavioral velocity checks to identify organized promo abuse rings, bot attacks, and calculate the true financial leakage.
 
-🛠 Tech Stack
+** Tech Stack **
+
 Database: MySQL
 
 Key Skills: Window Functions (LAG, OVER), Common Table Expressions (CTEs), Advanced Aggregations, Data Lineage Tracking, Churn Analysis.
 
-🗄️ Database Schema
+** Database Schema **
+
 The analysis is built on a relational database consisting of three core tables representing the event logs of the platform.
 
-users: Master table of registered accounts (user_id, signup_date, phone_number).
+** users: ** Master table of registered accounts (user_id, signup_date, phone_number).
 
-devices: Login event logs tracking hardware and network identifiers (device_log_id, user_id, device_id, ip_address, login_timestamp).
+** devices: ** Login event logs tracking hardware and network identifiers (device_log_id, user_id, device_id, ip_address, login_timestamp).
 
-orders: Transactional data tracking financial metrics (order_id, user_id, order_value, promo_code, discount_applied).
+** orders: ** Transactional data tracking financial metrics (order_id, user_id, order_value, promo_code, discount_applied).
 
 
-🔍 The Investigation & SQL Queries
-1. Identifying Fraudulent Devices (The Detection Engine)
-Business Context: Normal users have one account per device. Fraudsters create multiple accounts on a single physical device to exploit the first-time user discount.
+** The Investigation & SQL Queries **
+
+** 1. Identifying Fraudulent Devices (The Detection Engine) **
+
+** Business Context: ** Normal users have one account per device. Fraudsters create multiple accounts on a single physical device to exploit the first-time user discount.
 
 SQL QUERY:
 
@@ -37,14 +43,14 @@ GROUP BY d.device_id
 HAVING COUNT(DISTINCT d.user_id) > 1;
 ```
 
-Insight: This query isolated specific hardware (e.g., DEV_001, DEV_009) that had up to 5 unique users claiming the same welcome promo, highlighting immediate targets for hardware-level blocking.
+** Insight: ** This query isolated specific hardware (e.g., DEV_001, DEV_009) that had up to 5 unique users claiming the same welcome promo, highlighting immediate targets for hardware-level blocking.
 <img width="800" height="500" alt="image" src="Query1.png" />
 
-2. Mapping the "Blast Radius" (Operational Action)
-Business Context: To reverse fraudulent transactions or suspend accounts, the Operations team needs the exact receipt numbers and user IDs tied to the bad devices found in Step 1.
+** 2. Mapping the "Blast Radius" (Operational Action) **
+** Business Context: ** To reverse fraudulent transactions or suspend accounts, the Operations team needs the exact receipt numbers and user IDs tied to the bad devices found in Step 1.
 
 SQL QUERY:
-
+```
 WITH SuspiciousDevices AS (
     SELECT device_id
     FROM devices
@@ -63,14 +69,17 @@ JOIN devices d ON u.user_id = d.user_id
 JOIN SuspiciousDevices sd ON d.device_id = sd.device_id
 WHERE o.promo_code = 'NEWBIE150'
 ORDER BY sd.device_id, o.order_date;
+```
 
-Insight: By utilizing a CTE, the query cleanly extracts a line-by-line "Hit List" of the exact fraudulent orders to pass to the governance team.
+** Insight: ** By utilizing a CTE, the query cleanly extracts a line-by-line "Hit List" of the exact fraudulent orders to pass to the governance team.
+<img width="800" height="500" alt="image" src="Query2.png" />
 
-3. The "Velocity" Check (Bot Detection)
-Business Context: Human users take time to register, verify an OTP, and log in. If multiple accounts are created and logged into the same device within minutes of each other, it indicates an automated script (bot attack).
+** 3. The "Velocity" Check (Bot Detection) **
+
+** Business Context: ** Human users take time to register, verify an OTP, and log in. If multiple accounts are created and logged into the same device within minutes of each other, it indicates an automated script (bot attack).
 
 SQL QUERY:
-
+```
 WITH DeviceSignups AS (
     SELECT 
         device_id,
@@ -86,13 +95,17 @@ SELECT
     TIMESTAMPDIFF(MINUTE, prev_login, login_timestamp) as minutes_since_last_signup
 FROM DeviceSignups
 WHERE TIMESTAMPDIFF(MINUTE, prev_login, login_timestamp) < 15;
-Insight: Leveraged the LAG Window Function to calculate the time delta between logins on the same device. Successfully caught a bot attack where accounts were being spun up every 5 minutes.
+```
 
-4. IP Address Hopping (Account Takeover / VPN Risk)
-Business Context: Fraudsters use VPN rotators to mask their location, resulting in rapid IP changes in a short time window.
+** Insight: ** Leveraged the LAG Window Function to calculate the time delta between logins on the same device. Successfully caught a bot attack where accounts were being spun up every 5 minutes.
+<img width="800" height="500" alt="image" src="Query3.png" />
+
+** 4. IP Address Hopping (Account Takeover / VPN Risk) **
+
+** Business Context: ** Fraudsters use VPN rotators to mask their location, resulting in rapid IP changes in a short time window.
 
 SQL QUERY:
-
+```
 WITH UserIPStats AS (
     SELECT 
         user_id,
@@ -104,13 +117,17 @@ WITH UserIPStats AS (
 SELECT user_id, ip_count, time_span_hours
 FROM UserIPStats
 WHERE ip_count > 2 AND time_span_hours < 24;
-Insight: Identified high-risk users logging in from 3+ completely different IP addresses within a tight 24-hour window, indicating severe location spoofing.
+```
 
-5. The True Cost of Fraud: Hit & Run vs. Retention Analysis
-Business Context: The marketing team needs to know if the promo code is acquiring loyal users. A "Promo Hit & Run" is a user who places exactly one order using the discount and never returns, offering zero lifetime value.
+** Insight: ** Identified high-risk users logging in from 3+ completely different IP addresses within a tight 24-hour window, indicating severe location spoofing.
+<img width="800" height="500" alt="image" src="Query4.png" />
+
+** 5. The True Cost of Fraud: Hit & Run vs. Retention Analysis **
+
+** Business Context: ** The marketing team needs to know if the promo code is acquiring loyal users. A "Promo Hit & Run" is a user who places exactly one order using the discount and never returns, offering zero lifetime value.
 
 SQL QUERY:
-
+```
 WITH CustomerStats AS (
     SELECT 
         user_id,
@@ -132,9 +149,14 @@ SELECT
         ELSE 'Retained Customer'
     END AS customer_behavior
 FROM CustomerStats;
-Insight: Proved that 100% of the users originating from the flagged duplicate devices were "Hit & Runs," confirming that blocking these devices would not harm genuine customer acquisition, thereby saving marketing budget.
+```
 
-🚀 Business Impact & Conclusion
+** Insight: ** Proved that 100% of the users originating from the flagged duplicate devices were "Hit & Runs," confirming that blocking these devices would not harm genuine customer acquisition, thereby saving marketing budget.
+<img width="800" height="500" alt="image" src="Query5.png" />
+<img width="800" height="500" alt="image" src="Query5_2.png" />
+
+** Business Impact & Conclusion **
+
 By implementing these SQL monitoring rules, the Trust & Safety team can:
 
 Reduce False Positives: Target specific hardware footprints rather than blanket-banning IP blocks.
